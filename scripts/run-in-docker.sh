@@ -88,6 +88,7 @@ fi
 docker run --rm -it --ipc=host \
     -v "$(pwd)":/workspace -w /workspace \
     -v "${data_dir}":/data \
+    --gpus=\"device=${gpus}\" \
     --env XDG_CACHE_HOME --env HF_DATASETS_CACHE --env WANDB_CACHE_DIR --env WANDB_DATA_DIR --env WANDB_API_KEY \
     $image $command
 
