@@ -33,7 +33,7 @@ from utils.torch_utils import torch_distributed_zero_first
 # Parameters
 help_url = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
 img_formats = ['bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo']  # acceptable image suffixes
-vid_formats = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # acceptable video suffixes
+vid_formats = ['mov', 'avi', 'mp4','MP4,' 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # acceptable video suffixes
 logger = logging.getLogger(__name__)
 
 # Get orientation exif tag
@@ -139,6 +139,7 @@ class LoadImages:  # for inference
 
         images = [x for x in files if x.split('.')[-1].lower() in img_formats]
         videos = [x for x in files if x.split('.')[-1].lower() in vid_formats]
+        # videos = []
         ni, nv = len(images), len(videos)
 
         self.img_size = img_size
@@ -157,6 +158,11 @@ class LoadImages:  # for inference
     def __iter__(self):
         self.count = 0
         return self
+    
+    # make subscriptable
+    
+    def __getitem__(self, idx):
+        return self.get_file(idx)
 
     def __next__(self):
         if self.count == self.nf:
@@ -195,6 +201,21 @@ class LoadImages:  # for inference
         img = np.ascontiguousarray(img)
 
         return path, img, img0, self.cap
+    
+    def get_file(self, idx):
+        path = self.files[idx]
+        img0 = cv2.imread(path)  # BGR
+        assert img0 is not None, 'Image Not Found ' + path
+            #print(f'image {self.count}/{self.nf} {path}: ', end='')
+
+        # Padded resize
+        img = letterbox(img0, self.img_size, stride=self.stride)[0]
+
+        # Convert
+        img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
+        img = np.ascontiguousarray(img)
+
+        return img
 
     def new_video(self, path):
         self.frame = 0
