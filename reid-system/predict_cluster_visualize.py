@@ -1,3 +1,4 @@
+from sklearn.cluster import KMeans
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,6 +13,7 @@ from gorillavision.model.triplet import TripletLoss
 import cv2
 import os
 import shutil
+from sklearn_som.som import SOM
 
 
 class ImageEmbedder:
@@ -31,12 +33,121 @@ class ImageEmbedder:
         return embedding
 
 
-def visualize_embeddings(embeddings, labels):
+def visualize_embeddings_som(embeddings, labels, k, db_embeddings=None):
+    embeddings_som = SOM(m=10, n=10, dim=256)
+    embeddings_som.fit(embeddings)
+    predictions = embeddings_som.predict(embeddings)
+    plt.figure(figsize=(10, 10))
+    plt.title("SOM Clustering")
+
+    # todo how to visualize the embeddings in 2D
+
+
+def visualize_embeddings_unsupervised(
+    embeddings, file_names, k, out_path, db_embeddings=None
+):
+    # visualize the embeddings in pca and perform unsupervised clustering.
+
     pca = PCA(n_components=2)
-    reduced_embeddings = pca.fit_transform(embeddings)
+
+    # if we have db_embeddings use them and give them a red border, but also include them in the clustering
+    if db_embeddings is not None:
+        combined_embeddings = np.vstack([embeddings, db_embeddings])
+        reduced_embeddings = pca.fit_transform(combined_embeddings)
+
+        # Split the transformed embeddings back
+        reduced_main_embeddings = reduced_embeddings[: len(embeddings)]
+        reduced_db_embeddings = reduced_embeddings[len(embeddings) :]
+
+        kmeans = KMeans(n_clusters=k)
+        kmeans.fit(combined_embeddings)
+        plt.scatter(
+            reduced_db_embeddings[:, 0],
+            reduced_db_embeddings[:, 1],
+            color="blue",
+            label="Database",
+            edgecolors="red",
+            facecolors="none",
+        )
+        plt.scatter(
+            reduced_main_embeddings[:, 0],
+            reduced_main_embeddings[:, 1],
+            c=kmeans.labels_[: len(embeddings)],
+            label="New",
+        )
+    else:
+        reduced_embeddings = pca.fit_transform(embeddings)
+        kmeans = KMeans(n_clusters=k)
+        kmeans.fit(embeddings)
+        plt.scatter(
+            reduced_embeddings[:, 0], reduced_embeddings[:, 1], c=kmeans.labels_
+        )
+
+    plt.title("Embeddings Visualization with Clustering")
+    plt.xlabel("PCA Component 1")
+    plt.ylabel("PCA Component 2")
+    plt.show()
+
+    # create a folder for each cluster and save the images in it
+    out_path_pca_clusters = os.path.join(out_path, "pca_clusters")
+    for i in range(k):
+        if not os.path.exists(os.path.join(out_path_pca_clusters, str(i))):
+            os.makedirs(os.path.join(out_path_pca_clusters, str(i)))
+    for i, label in enumerate(kmeans.labels_):
+        shutil.copy(
+            os.path.join(args.images_path, file_names[i] + ".png"),
+            os.path.join(out_path_pca_clusters, str(label), file_names[i] + ".png"),
+        )
+
+    # create kmeans wirthout pca for comparison
+    kmeans = KMeans(n_clusters=k)
+    kmeans.fit(embeddings)
+
+    # save the clustered images
+    out_path_no_pca_clusters = os.path.join(out_path, "no_pca_clusters")
+    for i in range(k):
+        if not os.path.exists(
+            os.path.join(out_path_no_pca_clusters, str(i) + "_kmeans")
+        ):
+            os.makedirs(os.path.join(out_path_no_pca_clusters, str(i) + "_kmeans"))
+    for i, label in enumerate(kmeans.labels_):
+        shutil.copy(
+            os.path.join(args.images_path, file_names[i] + ".png"),
+            os.path.join(
+                out_path_no_pca_clusters, str(label) + "_kmeans", file_names[i] + ".png"
+            ),
+        )
+
+
+def visualize_embeddings(embeddings, labels, db_embeddings=None, db_labels=None):
+    pca = PCA(n_components=2)
     plt.figure(figsize=(8, 8))
-    for i, label in enumerate(labels):
-        plt.scatter(reduced_embeddings[i, 0], reduced_embeddings[i, 1], label=label)
+
+    if db_embeddings is not None:
+        combined_embeddings = np.vstack([embeddings, db_embeddings])
+        reduced_embeddings = pca.fit_transform(combined_embeddings)
+
+        # Split the transformed embeddings back
+        reduced_main_embeddings = reduced_embeddings[: len(embeddings)]
+        reduced_db_embeddings = reduced_embeddings[len(embeddings) :]
+
+        plt.scatter(
+            reduced_db_embeddings[:, 0],
+            reduced_db_embeddings[:, 1],
+            color="blue",
+            label="Database",
+        )
+        plt.scatter(
+            reduced_main_embeddings[:, 0],
+            reduced_main_embeddings[:, 1],
+            color="red",
+            label="New",
+        )
+    else:
+        reduced_embeddings = pca.fit_transform(embeddings)
+        for i, label in enumerate(labels):
+            plt.scatter(reduced_embeddings[i, 0], reduced_embeddings[i, 1], label=label)
+
     plt.legend()
     plt.title("Embeddings Visualization")
     plt.xlabel("PCA Component 1")
@@ -68,6 +179,13 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="Path to the folder where the outputs will be saved.",
+    )
+
+    parser.add_argument(
+        "--num_individuals",
+        type=int,
+        required=False,
+        help="Number of distinct individuals. Required for unsupervised clustering.",
     )
 
     args = parser.parse_args()
@@ -104,4 +222,20 @@ if __name__ == "__main__":
             os.path.join(args.out_path, str(id), image_path + ".png"),
         )
 
-    visualize_embeddings(embeddings, ids)
+    # visualize_embeddings_som(embeddings, ids, args.num_individuals, db_embeddings)
+
+    if args.db_path:
+        visualize_embeddings(embeddings, ids, db_embeddings, db_labels)
+    else:
+        visualize_embeddings(embeddings, file_names)
+
+    if args.num_individuals:
+        out_path = args.out_path
+        if args.db_path:
+            visualize_embeddings_unsupervised(
+                embeddings, file_names, args.num_individuals, out_path, db_embeddings
+            )
+        else:
+            visualize_embeddings_unsupervised(
+                embeddings, file_names, args.num_individuals, out_path
+            )
