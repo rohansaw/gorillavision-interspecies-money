@@ -188,6 +188,14 @@ if __name__ == "__main__":
         help="Number of distinct individuals. Required for unsupervised clustering.",
     )
 
+    parser.add_argument(
+        "--save_embeddings",
+        type=bool,
+        required=False,
+        default=False,
+        help="Save the embeddings to a file.",
+    )
+
     args = parser.parse_args()
 
     embedder = ImageEmbedder(args.model_path, (224, 224))
@@ -211,6 +219,10 @@ if __name__ == "__main__":
             ids.append(predicted_id[0])
 
     embeddings = np.array(embeddings)
+
+    if args.save_embeddings:
+        np.save(os.path.join(args.out_path, "embeddings.npy"), embeddings)
+        np.save(os.path.join(args.out_path, "file_names.npy"), file_names)
 
     # save the images with their predicting labels, and combine all images with the same id in one folder
     for image_path, id in zip(file_names, ids):
