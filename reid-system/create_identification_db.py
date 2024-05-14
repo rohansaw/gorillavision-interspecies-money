@@ -62,20 +62,20 @@ def create_db_interspecies_format(
     labels = []
     embeddings = []
 
-    for img_path in os.listdir(image_folder):
-        name, ext = os.path.splitext(img_path)
-        if ext.lower() not in [".png", ".jpg", ".jpeg"]:
-            continue
+    for individual_folder in os.listdir(image_folder):
+        for img_path in os.listdir(os.path.join(image_folder, individual_folder)):
+            _, ext = os.path.splitext(img_path)
+            if ext.lower() not in [".png", ".jpg", ".jpeg"]:
+                continue
 
-        label = name.split("_")[0]
-        with torch.no_grad():
-            full_img_path = os.path.join(image_folder, img_path)
-            img = transform_image(
-                imread(full_img_path), (input_width, input_height), img_preprocess
-            )
-            labels.append(label)
-            embedding = model(img).numpy()[0]
-            embeddings.append(embedding)
+            label = individual_folder
+            with torch.no_grad():
+                full_img_path = os.path.join(image_folder, individual_folder, img_path)
+                img = imread(full_img_path)
+                img = transform_image(img, (input_width, input_height), img_preprocess)
+                labels.append(label)
+                embedding = model(img).numpy()[0]
+                embeddings.append(embedding)
 
     return np.array(labels), np.array(embeddings)
 
@@ -112,6 +112,9 @@ if __name__ == "__main__":
         )
     else:
         print("Unsupported Format.")
+
+    if not os.path.exists(config["create_db"]["db_path"]):
+        os.mkdir(config["create_db"]["db_path"])
     np.save(
         os.path.join(config["create_db"]["db_path"], "labels.npy"), np.array(labels)
     )

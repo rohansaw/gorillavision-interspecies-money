@@ -67,7 +67,7 @@ class TripletLoss(pl.LightningModule):
         self.img_preprocess = img_preprocess
         self.backbone_type = backbone
         num_classes = self.df["labels_numeric"].nunique()
-        print("Amount of individuals", num_classes)
+        print("Amount of individuals used for training this model", num_classes)
 
         # backbone building a feature map
         if backbone == "inception":
@@ -100,7 +100,7 @@ class TripletLoss(pl.LightningModule):
         x = x.flatten(start_dim=1)
         x = self.linear(x)
         # x = self.dropout(x)
-        return x, attn_weights
+        return x
 
     def prepare_data(self):
         print("Preparing Data...")

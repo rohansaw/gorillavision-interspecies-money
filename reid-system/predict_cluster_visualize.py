@@ -22,9 +22,6 @@ class ImageEmbedder:
         self.identity_model.eval()
         self.img_sz = img_sz
 
-    def transform_image(self, image):
-        return self.transform(image)
-
     def predict_embedding(self, img_path):
         img = cv2.imread(str(img_path))
         img = transform_image(img, self.img_sz, "crop")
