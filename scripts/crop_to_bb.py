@@ -17,7 +17,7 @@ def yolobbox2bbox(x, y, w, h, img_w, img_h):
     return x1 * img_w, y1 * img_h, x2 * img_w, y2 * img_h
 
 
-label_id = "0"  # descripes which label should be read. Currently there must be only one label of this type
+label_id = "0"  # describes which label should be read. Currently there must be only one label of this type
 images_folder = (
     "/home/rohan/Documents/projects/interspecies_money/data/kwitonda_portraits/Feb2024"
 )
