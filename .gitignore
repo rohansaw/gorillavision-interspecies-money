@@ -140,3 +140,5 @@ token.json
 credentials.json
 wandb/
 runs/
+
+data

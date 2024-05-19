@@ -19,6 +19,7 @@ from bridge_wrapper import YOLOv7_DeepSORT
 from detection_helpers import Detector
 from collections import defaultdict
 import glob  
+import numpy as np
 
 def load_video_into_frames(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -42,32 +43,29 @@ def extract():
     # print(dir(opt))
     tracker = YOLOv7_DeepSORT(reID_model_path=opt.reID_weights, detector=detector)
     
-    
-    
     output_folder = Path(opt.output)    
     os.makedirs(output_folder, exist_ok=True)
     
-    
     if os.path.isdir(opt.source):
-        videos = glob.glob(f"{opt.source}/*.MP4")
+        files = glob.glob(f"{opt.source}/**/*.*")
     else:
-        videos = [opt.source]
+        files = [opt.source]
+        
+    
+    videos = [file for file in files if file.lower().endswith(('.mp4', '.avi', '.mov'))]
+    images = [file for file in files if file.lower().endswith(('.jpg', '.jpeg', '.png'))]
+    
+    print(f'Found {len(videos)} videos and {len(images)} images total files {len(files)}')
+    
     print("Tracking video")
     for video_name in videos:
         file_name_without_extension = os.path.basename(video_name).split('.')[0]
         output_path = output_folder / file_name_without_extension
-        
         os.makedirs(output_path, exist_ok=True)
-        
-        
-        
-        
         frame_results_face = tracker.track_video(video_name, output=str(output_path / "labeled.mp4"), show_live = False, skip_frames = 0, count_objects = True, verbose=1)
         video = load_video_into_frames(video_name)
         print("Video has", len(video), "frames")
-        
         results = defaultdict(list)
-        
         for frame_id, frame_result in enumerate(frame_results_face):
             for type, id, confidence, bbox in frame_result:
                 results[f'{type}_{id}'].append([frame_id, bbox])
@@ -76,9 +74,6 @@ def extract():
             for i in range(len(value) - 1):
                 assert value[i][0] <  value[i+1][0], f"Frames are not in order {value[i][0]} and {value[i+1][0]}"
                 
-        
-        frame_results = defaultdict(list)
-        
         for key, value in results.items():
             print(f'{key} with {len(value)} frames')
             i = 0
@@ -99,7 +94,33 @@ def extract():
                 cv2.imwrite(f"{output_path}/{key.replace('person_', '')}/{i}.jpg", crop)
                 
                 i = i + 1
+    
+    print("Tracking images")
+    for image_name in images:
+        file_name_without_extension = os.path.basename(image_name).split('.')[0]
+        last_folder = os.path.basename(os.path.dirname(image_name)).split('/')[-1]
+        output_path = output_folder / last_folder
+        os.makedirs(output_path, exist_ok=True)
+        print(dir(detector))
+        # output=str(output_path / "labeled.jpg"), show_live = False, count_objects = True, verbose=1
+        results = detector.detect(image_name, False)
+        if results is None:
+            print("No results")
+            continue
+        for result in results:
+            x1, y1, x2, y2, conf, c = result
+            x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+            # load image
+            image = cv2.imread(image_name)
+            image = np.array(image)
+            print(x1, y1, x2, y2)
+            print(image.shape)
+            crop = image[y1:y2, x1:x2]
             
+            cv2.imwrite(f"{output_path}/{file_name_without_extension}.jpg", crop)
+        # save the result
+        
+        
 
 
 
