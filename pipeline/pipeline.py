@@ -24,8 +24,8 @@ class Pipeline:
     def run(self):
         logging.info("Detecting faces using Yolo.")
         for img in self.image_service:
-            labels, images = self.detect_face(img)
-            self.crop_to_face(labels, images, img)
+            bboxes, images = self.detect_face(img)
+            self.crop_to_face(bboxes, images, img)
         l = map(lambda x: 
                     self.crop_to_face(x, self.detect_face(x)), self.image_service)
         logging.info("Done so far.")
@@ -33,17 +33,23 @@ class Pipeline:
     def detect_face(self, img):
         label_path = os.path.join(self.output_path, "labels", img[1])
         os.makedirs(label_path, exist_ok=True)
-        images = process_image(img[0], self.yolo, self.prediction_params["confidence"], self.prediction_params["vid_stride"])
-        image_bboxes= []
-        for idx, image in enumerate(images):
-            local_label_path = os.path.join(label_path, img[0].stem + ".txt") if len(images) == 1 else os.path.join(label_path, img[0].stem + f"_{idx}.txt")
-            bboxes = image['bboxes']
-            with open(local_label_path, 'w') as f:
-                for item in bboxes:
-                    line = f"{item[0]} {item[1]} {item[2]} {item[3]} {item[4]}"
+        results = process_image(img[0], self.yolo, self.prediction_params["confidence"], self.prediction_params["vid_stride"])
+        image_bboxes = []
+        for key, images in results.items():
+            print("aaw", key, len(images))
+            print(type(images))
+            for idx, bbox in enumerate(images['bboxes']):
+                label = img[0].stem + f"_id_{key}" if len(images['result']) == 1 else img[0].stem + f"_id_{key}" + f"_{idx}"
+                local_label_path = os.path.join(label_path, label + ".txt")
+                with open(local_label_path, 'w') as f:
+                    line = f"{bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]} {bbox[4]}"
                     f.write("%s\n" % line)
-            image_bboxes.append(bboxes)
-        return image_bboxes, list(map(lambda x: x['img'], images))
+                image_bboxes.append({'label': label, 'bboxes':bbox})
+        output = []
+        for key, result in results.items():
+            for res in result['result']:
+                output.append(res)
+        return image_bboxes, output
 
     def crop_to_face(self, image_bboxes, images, img):
         cropped_path = os.path.join(self.output_path, "cropped", img[1])
@@ -53,8 +59,9 @@ class Pipeline:
             if len(bboxes) == 0:
                 logging.warning(f"No bboxes found for {img[0].stem}")
                 continue
-            local_cropped_path = os.path.join(cropped_path, img[0].stem + ".png") if len(images) == 1 else os.path.join(cropped_path, img[0].stem + f"_{idx}.png")
-            cropped_image = crop_image(image, bboxes)
+            local_cropped_path = os.path.join(cropped_path, bboxes['label'] + ".png")
+            #local_cropped_path = os.path.join(cropped_path, img[0].stem + ".png") if len(images) == 1 else os.path.join(cropped_path, img[0].stem + f"_{idx}.png")
+            cropped_image = crop_image(image, bboxes['bboxes'])
             cropped_image.save(local_cropped_path)
             cropped_paths.append(local_cropped_path)
         return cropped_paths

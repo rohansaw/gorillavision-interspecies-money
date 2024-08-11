@@ -20,9 +20,10 @@ def yolobbox2bbox(x, y, w, h, img_w, img_h):
 def crop_image(img, labels):
     logging.info(f"Reading label {labels}")
     logging.warning(f"Currently always selecting the first gorilla on the image")
-    label = labels[0][1:]
+    print(labels)
+    label = labels[1:]
     print(img)
-    imageRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    imageRGB = cv2.cvtColor(img['img'], cv2.COLOR_BGR2RGB)
     img = Image.fromarray(imageRGB, 'RGB')
     bbox = yolobbox2bbox(*label, img.width, img.height)
     print(bbox)
