@@ -29,3 +29,9 @@ def crop_image(img, labels):
     print(bbox)
     cropped_image = img.crop(tuple(bbox))
     return cropped_image
+
+def only_crop_image(image, x, y, w, h):
+    # imageRGB = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # img = Image.fromarray(imageRGB, 'RGB')
+    bbox = yolobbox2bbox(x,y,w,h, image.width, image.height)
+    return image.crop(tuple(bbox))
