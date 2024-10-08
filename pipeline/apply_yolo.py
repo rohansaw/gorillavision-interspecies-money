@@ -10,7 +10,7 @@ def calculate_single_bbox(bbox, width, height):
     #     logging.info(f"Detected {bbox.cls} with confidence {bbox.conf:.2f}")
     # except:
     #     print("Error")
-    print(bbox)
+    # print(bbox)
     box = bbox['xyxy']  # Bounding box coordinates [x1, y1, x2, y2]
     x_center = (box[0] + box[2]) / 2 / width
     y_center = (box[1] + box[3]) / 2 / height
@@ -35,11 +35,22 @@ def process_image(image_path, model, confidence, vid_stride):
         logging.info(f"Processing frame {i}")
         if success:
             # Run YOLOv8 tracking on the frame, persisting tracks between frames
-            results = model.track(frame, persist=True,  vid_stride=int(vid_stride))
+            results = model.track(frame, persist=True, conf=float(confidence), vid_stride=int(vid_stride), iou=0.2)
+            nothing_in_track = False
+            if results[0].boxes.is_track is False:
+                nothing_in_track = True
+                results = model.predict(frame, conf=float(confidence),vid_stride=int(vid_stride))
+                gorilla_detected_in_predict = len(results[0].boxes.cls) > 0
+                print("Nothing in track, predicting with predict function", gorilla_detected_in_predict)
             for result in results:
+                #print(result.boxes)
+                    #tracks['no_track'] = 
+                    # predict_results = model.predict(frame, conf=float(confidence))
+                    # print("dsl", predict_results[0].boxes)
                 if result.boxes.id is not None:
                     for idx, id in enumerate(result.boxes.id):
-                        id = str(int(id.item()))
+                        id = "no_track" if nothing_in_track and gorilla_detected_in_predict else str(int(id.item()))
+                        print("JJJJ", id == "no_track")
                         if id not in tracks:
                             tracks[id] = {}
                             tracks[id]['result'] = []

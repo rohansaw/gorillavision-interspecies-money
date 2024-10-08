@@ -6,26 +6,36 @@ import shutil
 from pathlib import Path
 
 from ultralytics import YOLO
+from PIL import Image
 
 from apply_yolo import process_image
 from cropper import crop_image
 from image_service import ImageService
+# from apply_dino import Dino, make_classification_eval_transform
 
 class Pipeline:
-    def __init__(self, name, input_dataset_path, output_path, yolo_path, prediction_params, allowed_extensions):
+    def __init__(self, name, input_dataset_path, output_path, reid_params, yolo_path, prediction_params, allowed_extensions):
         self.name = name
         self.input_dataset_path = input_dataset_path
         self.output_path = output_path
         logging.info(f"Loading yolo model from: {Path(yolo_path)}")
         self.yolo = YOLO(yolo_path)
+        self.yolo.to('cuda')
         self.prediction_params = prediction_params
+        # self.reid_model = Dino(model_path=reid_params["model_path"], 'cuda' if torch.cuda.is_available() else 'cpu')
         self.image_service = ImageService(input_dataset_path, output_path, allowed_extensions["allowed_img_extensions"], allowed_extensions["allowed_video_extensions"])
 
     def run(self):
         logging.info("Detecting faces using Yolo.")
         for img in self.image_service:
             bboxes, images = self.detect_face(img)
-            self.crop_to_face(bboxes, images, img)
+            paths = self.crop_to_face(bboxes, images, img)
+            # for path in paths:
+            #     img = Image.open(path).convert("RGB")
+            #     img = make_classification_eval_transform()(img)
+            #     s = self.reid_model(img.unsqueeze(0))
+            #     print("PREDICTIOn", s)
+            #     # apply dino
         l = map(lambda x: 
                     self.crop_to_face(x, self.detect_face(x)), self.image_service)
         logging.info("Done so far.")
@@ -91,8 +101,9 @@ if __name__ == '__main__':
         name=args['name'],
         input_dataset_path=args['dataset_path'],
         prediction_params=config["PREDICTION"],
+        reid_params = config["REID"],
         output_path = args["output_path"], 
-        yolo_path=config['DEFAULT']['yolo_path'], 
+        yolo_path=config['DEFAULT']['yolo_path'],
         allowed_extensions={'allowed_img_extensions': config['DEFAULT']['allowed_img_extensions'], 'allowed_video_extensions': config['DEFAULT']['allowed_video_extensions']}
     )
     pipeline.run()

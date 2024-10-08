@@ -16,6 +16,7 @@ class ImageService:
         self.current_image = None
 
     def validate_data(self, allowed_img_extensions, allowed_video_extensions):
+        print(self.input_dataset_path)
         sub_folder = os.listdir(self.input_dataset_path)
         if not sub_folder:
             logging.error("The dataset folder does not contain any subfolders.")
