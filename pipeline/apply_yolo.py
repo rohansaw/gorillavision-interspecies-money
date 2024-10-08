@@ -1,8 +1,15 @@
 import cv2
 import logging
 from PytorchWildlife.models import detection as pw_detection
+from PytorchWildlife import utils as pw_utils
+import supervision as sv
+
 from PIL import Image
 import torchvision.transforms as T
+import torchvision.transforms.functional as F
+import matplotlib.pyplot as plt
+
+
 import numpy as np
 from cropper import only_crop_image
 
@@ -31,7 +38,7 @@ def process_image(image_path, model, confidence, vid_stride):
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             if img.mode == 'RGBA':
                 img = img.convert('RGB')
-
+            print("img", img)
             resize_transform = T.Compose([
                 T.Resize((960, 1792)),  # Resize to a size that is a multiple of 32
                 T.ToTensor()
@@ -41,6 +48,13 @@ def process_image(image_path, model, confidence, vid_stride):
             # Run MegaDetector on the frame
             detection_result = detection_model.single_image_detection(img_tensor)
             detections = detection_result['detections']
+            print(detection_result)
+            # detection_result['img_id'] = 'test.png'
+            # pw_utils.save_detection_images(detection_result, "./demo_output")
+            try:
+                pw_utils.save_crop_images(detection_result, "crop_output")
+            except Exception as e:
+                print(e)
 
             # Extract gorilla bounding boxes from MegaDetector detections
             gorilla_boxes = []
@@ -53,16 +67,49 @@ def process_image(image_path, model, confidence, vid_stride):
                 continue
 
             # Crop the frame based on the bounding boxes and run YOLOv8 on each crop
+            if len(gorilla_boxes) == 0:
+                continue
+            print(gorilla_boxes)
             for box in gorilla_boxes:
+                print(box)
+                print(np.array(img.convert("RGB")))
+                cropped_img = sv.crop_image(
+                    image=np.array(img.convert("RGB")), xyxy=box
+                )
+                print(cropped_img)
+                with sv.ImageSink(target_dir_path="/Users/lukaslaskowski/Documents/HPI/gorillavision/gorillavision-interspecies-money/pipeline/images", overwrite=True) as sink:
+                    sink.save_image(
+                    image=cv2.cvtColor(cropped_img, cv2.COLOR_RGB2BGR),
+                    image_name="testimage.png"
+                    )
+                #sv.save_image(image=cropped_img, size=(16, 16))
+                sv.plot_image(image=cropped_img, size=(16, 16))
+
                 # cropped_img = only_crop_image(img, *box)
-                x1, y1, x2, y2 = map(int, box)
-                cropped_frame = frame[y1:y2, x1:x2]
-                cv2.imwrite("./image.png", cropped_frame)
-
+                #x1, y1, x2, y2 = map(int, box)
+                # cropped_frame = frame[y1:y2, x1:x2]
+                #cropped_tensor = F.crop(img_tensor, top=y1, left=x1, height=y2 - y1, width=x2 - x1)
+                
+                # image_np = cropped_tensor.permute(1, 2, 0).numpy()
+                # plt.imshow(image_np)
+                # plt.axis('off')  # Turn off axis for better visualization
+                # plt.show()
+                break
+                if cropped_tensor.size(1) == 0 or cropped_tensor.size(2) == 0:
+                    logging.warning(f"Invalid crop for bounding box {box}, skipping.")
+                    continue
+                cropped_frame = transform(cropped_tensor)
+                #cropped_frame = cropped_tensor[0].permute(1, 2, 0).numpy()
+                print("writing", cropped_frame)
+                cropped_frame.save('./image.png')
+                print("written")
+                #cv2.imwrite("/Users/lukaslaskowski/Documents/HPI/gorillavision/gorillavision-interspecies-money/image.png", cropped_frame)
+                break
+                #cv2.imwrite("/Users/lukaslaskowski/Documents/HPI/gorillavision/gorillavision-interspecies-money/image.png", cropped_frame)
                 # Run YOLOv8 tracking on the cropped frame
-                cropped_frame = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
+                # cropped_frame = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
 
-                results = model.track(cropped_frame, persist=True, conf=float(confidence), vid_stride=int(vid_stride),device=1, iou=0.2)
+                results = model.track(cropped_frame, persist=True, conf=float(confidence), vid_stride=int(vid_stride),device="cpu", iou=0.2)
                 nothing_in_track = False
                 if results[0].boxes.is_track is False:
                     nothing_in_track = True
