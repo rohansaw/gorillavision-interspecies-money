@@ -189,5 +189,6 @@ if __name__ == "__main__":
             "allowed_img_extensions": config["DEFAULT"]["allowed_img_extensions"],
             "allowed_video_extensions": config["DEFAULT"]["allowed_video_extensions"],
         },
+        save_output_videos=True,
     )
     pipeline.run()
