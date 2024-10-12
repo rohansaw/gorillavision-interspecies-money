@@ -121,6 +121,7 @@ def process_image(image_path, model, detection_model, confidence, vid_stride):
                                     "xyxy": xyxy_face_in_full_frame,
                                     "xyxy_face_in_body_crop": xyxy_face_in_body_crop,
                                     "img": np_img,
+                                    "img_cropped": result.orig_img,
                                     "cls": result.boxes.cls[idx].item(),
                                     "frame_id": i,
                                 }
@@ -134,8 +135,8 @@ def process_image(image_path, model, detection_model, confidence, vid_stride):
             tracks[key]["bboxes"].append(
                 calculate_single_bbox(
                     result,
-                    Image.fromarray(result["img"], "RGB").size[0],
-                    Image.fromarray(result["img"], "RGB").size[1],
+                    Image.fromarray(result["img_cropped"], "RGB").size[0],
+                    Image.fromarray(result["img_cropped"], "RGB").size[1],
                 )
             )
     cap.release()
