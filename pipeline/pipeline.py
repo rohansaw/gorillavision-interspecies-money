@@ -34,6 +34,7 @@ class Pipeline:
         self.input_dataset_path = input_dataset_path
         self.output_path = output_path
         self.save_output_videos = save_output_videos
+        self.allowed_extensions = allowed_extensions
         logging.info(f"Loading yolo model from: {Path(yolo_path)}")
         self.yolo = YOLO(yolo_path)
         self.detection_model = pw_detection.MegaDetectorV5(
