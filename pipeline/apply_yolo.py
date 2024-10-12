@@ -1,7 +1,7 @@
 import cv2
 import logging
 from PytorchWildlife.models import detection as pw_detection
-from PytorchWildlife import utils as pw_utils
+from PytorchWildlife import trans as pw_trans
 import supervision as sv
 
 from PIL import Image
@@ -32,8 +32,6 @@ def process_image(image_path, model, detection_model, confidence, vid_stride):
     length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     logging.info(f"Processing video {image_path} with {length} frames.")
     i = 0
-
-    # Initialize MegaDetector model
     
 
     while cap.isOpened():
