@@ -97,11 +97,12 @@ class Pipeline:
         # collect all the boxes per frame and save them as a video
         bboxes_per_frame = {}
         for key, images in detected_tracks.items():
-            for idx, res in enumerate(images["results"]):
+            print(images)
+            for idx, res in enumerate(images["result"]):
                 frame_id = res["frame_id"]
                 if not frame_id in bboxes_per_frame:
                     bboxes_per_frame[frame_id] = {"img": res["img"], "bboxes": []}
-                bboxes_per_frame[frame_id]["bboxes"].append(res["bboxes"])
+                bboxes_per_frame[frame_id]["bboxes"].append(res["xyxy"])
 
         # save the video with the boxes
 

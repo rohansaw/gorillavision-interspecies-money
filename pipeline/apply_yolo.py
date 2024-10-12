@@ -1,7 +1,7 @@
 import cv2
 import logging
 from PytorchWildlife.models import detection as pw_detection
-from PytorchWildlife import trans as pw_trans
+from PytorchWildlife.data import transforms as pw_trans
 import supervision as sv
 
 from PIL import Image
