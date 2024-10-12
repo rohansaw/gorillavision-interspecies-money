@@ -18,7 +18,7 @@ fixed_size = (416, 416)
 
 
 def calculate_single_bbox(bbox, width, height):
-    box = bbox["xyxy"]  # Bounding box coordinates [x1, y1, x2, y2]
+    box = bbox["xyxy_face_in_body_crop"]  # Bounding box coordinates [x1, y1, x2, y2]
     x_center = (box[0] + box[2]) / 2 / width
     y_center = (box[1] + box[3]) / 2 / height
     box_width = (box[2] - box[0]) / width
@@ -119,6 +119,7 @@ def process_image(image_path, model, detection_model, confidence, vid_stride):
                             tracks[id]["result"].append(
                                 {
                                     "xyxy": xyxy_face_in_full_frame,
+                                    "xyxy_face_in_body_crop": xyxy_face_in_body_crop,
                                     "img": np_img,
                                     "cls": result.boxes.cls[idx].item(),
                                     "frame_id": i,
