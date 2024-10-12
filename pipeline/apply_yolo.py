@@ -1,12 +1,27 @@
 import cv2
 import logging
 from PytorchWildlife.models import detection as pw_detection
+from PytorchWildlife.data import transforms as pw_trans
+from PytorchWildlife import utils as pw_utils
 from PIL import Image
 import torchvision.transforms as T
 import numpy as np
 from cropper import only_crop_image
-
-def process_image(image_path, model, confidence, vid_stride):
+import supervision as sv
+fixed_size = (416, 416)
+def calculate_single_bbox(bbox, width, height):
+    # try:
+    #     logging.info(f"Detected {bbox.cls} with confidence {bbox.conf:.2f}")
+    # except:
+    #     print("Error")
+    # print(bbox)
+    box = bbox['xyxy']  # Bounding box coordinates [x1, y1, x2, y2]
+    x_center = (box[0] + box[2]) / 2 / width
+    y_center = (box[1] + box[3]) / 2 / height
+    box_width = (box[2] - box[0]) / width
+    box_height = (box[3] - box[1]) / height
+    return [int(bbox['cls']), x_center, y_center, box_width, box_height]
+def process_image(image_path, model, detection_model, confidence, vid_stride):
     tracks = {}
     cap = cv2.VideoCapture(str(image_path))
     length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -14,7 +29,7 @@ def process_image(image_path, model, confidence, vid_stride):
     i = 0
 
     # Initialize MegaDetector model
-    detection_model = pw_detection.MegaDetectorV5() # Model weights are automatically downloaded.
+    
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -31,15 +46,10 @@ def process_image(image_path, model, confidence, vid_stride):
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             if img.mode == 'RGBA':
                 img = img.convert('RGB')
-
-            resize_transform = T.Compose([
-                T.Resize((960, 1792)),  # Resize to a size that is a multiple of 32
-                T.ToTensor()
-            ])
-            img_tensor = resize_transform(img)
-
-            # Run MegaDetector on the frame
-            detection_result = detection_model.single_image_detection(img_tensor)
+            np_img = np.array(img.convert("RGB"))
+            transform = pw_trans.MegaDetector_v5_Transform(target_size=detection_model.IMAGE_SIZE,
+                                               stride=detection_model.STRIDE)
+            detection_result = detection_model.single_image_detection(transform(np_img), np_img.shape)
             detections = detection_result['detections']
 
             # Extract gorilla bounding boxes from MegaDetector detections
@@ -55,14 +65,18 @@ def process_image(image_path, model, confidence, vid_stride):
             # Crop the frame based on the bounding boxes and run YOLOv8 on each crop
             for box in gorilla_boxes:
                 # cropped_img = only_crop_image(img, *box)
-                x1, y1, x2, y2 = map(int, box)
-                cropped_frame = frame[y1:y2, x1:x2]
-                cv2.imwrite("./image.png", cropped_frame)
+                cropped_img = sv.crop_image(
+                    image=np_img, xyxy=box
+                    )
 
                 # Run YOLOv8 tracking on the cropped frame
-                cropped_frame = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
+                cropped_frame = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB)
+                #if res is False:
+                   # print("FALSLEL")
+                cropped_frame = cv2.resize(cropped_frame, (416, 416))
+                res = cv2.imwrite('./bmw.png', cropped_frame)
 
-                results = model.track(cropped_frame, persist=True, conf=float(confidence), vid_stride=int(vid_stride),device=1, iou=0.2)
+                results = model.track(cropped_frame, persist=True, conf=float(confidence), vid_stride=int(vid_stride),device=0, iou=0.2)
                 nothing_in_track = False
                 if results[0].boxes.is_track is False:
                     nothing_in_track = True
@@ -81,3 +95,9 @@ def process_image(image_path, model, confidence, vid_stride):
                             tracks[id]['result'].append({'xyxy': result.boxes.xyxy[idx].tolist(), 'img': result.orig_img, 'cls': result.boxes.cls[idx].item()})
         else:
             break
+    for key in tracks.keys():
+        tracks[key]['bboxes'] = [] #calculate_bbox(tracks[result]['result'])
+        for result in tracks[key]['result']:
+            tracks[key]['bboxes'].append(calculate_single_bbox(result, Image.fromarray(result['img'], "RGB").size[0], Image.fromarray(result['img'], "RGB").size[1]))
+    cap.release()
+    return tracks

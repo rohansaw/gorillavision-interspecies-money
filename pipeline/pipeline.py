@@ -11,6 +11,8 @@ from PIL import Image
 from apply_yolo import process_image
 from cropper import crop_image
 from image_service import ImageService
+from PytorchWildlife.models import detection as pw_detection
+
 # from apply_dino import Dino, make_classification_eval_transform
 
 class Pipeline:
@@ -20,6 +22,7 @@ class Pipeline:
         self.output_path = output_path
         logging.info(f"Loading yolo model from: {Path(yolo_path)}")
         self.yolo = YOLO(yolo_path)
+        self.detection_model = pw_detection.MegaDetectorV5(device="cuda", pretrained=True) # Model weights are automatically downloaded.
         self.yolo.to('cuda')
         self.prediction_params = prediction_params
         # self.reid_model = Dino(model_path=reid_params["model_path"], 'cuda' if torch.cuda.is_available() else 'cpu')
@@ -43,7 +46,7 @@ class Pipeline:
     def detect_face(self, img):
         label_path = os.path.join(self.output_path, "labels", img[1])
         os.makedirs(label_path, exist_ok=True)
-        results = process_image(img[0], self.yolo, self.prediction_params["confidence"], self.prediction_params["vid_stride"])
+        results = process_image(img[0], self.yolo, self.detection_model, self.prediction_params["confidence"], self.prediction_params["vid_stride"])
         image_bboxes = []
         for key, images in results.items():
             print("aaw", key, len(images))
