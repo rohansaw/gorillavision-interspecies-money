@@ -1,10 +1,15 @@
 import cv2
 import logging
 from PytorchWildlife.models import detection as pw_detection
-from PytorchWildlife.data import transforms as pw_trans
 from PytorchWildlife import utils as pw_utils
+import supervision as sv
+
 from PIL import Image
 import torchvision.transforms as T
+import torchvision.transforms.functional as F
+import matplotlib.pyplot as plt
+
+
 import numpy as np
 from cropper import only_crop_image
 import supervision as sv
@@ -51,7 +56,9 @@ def process_image(image_path, model, detection_model, confidence, vid_stride):
                                                stride=detection_model.STRIDE)
             detection_result = detection_model.single_image_detection(transform(np_img), np_img.shape)
             detections = detection_result['detections']
-
+            print(detection_result)
+            # detection_result['img_id'] = 'test.png'
+            # pw_utils.save_detection_images(detection_result, "./demo_output")
             # Extract gorilla bounding boxes from MegaDetector detections
             gorilla_boxes = []
             for idx, class_id in enumerate(detections.class_id):
@@ -63,19 +70,30 @@ def process_image(image_path, model, detection_model, confidence, vid_stride):
                 continue
 
             # Crop the frame based on the bounding boxes and run YOLOv8 on each crop
+            if len(gorilla_boxes) == 0:
+                continue
+            print(gorilla_boxes)
             for box in gorilla_boxes:
                 # cropped_img = only_crop_image(img, *box)
                 cropped_img = sv.crop_image(
                     image=np_img, xyxy=box
                     )
 
+                # cropped_img = only_crop_image(img, *box)
+                #x1, y1, x2, y2 = map(int, box)
+                # cropped_frame = frame[y1:y2, x1:x2]
+                #cropped_tensor = F.crop(img_tensor, top=y1, left=x1, height=y2 - y1, width=x2 - x1)
+                
+                # image_np = cropped_tensor.permute(1, 2, 0).numpy()
+                # plt.imshow(image_np)
+                # plt.axis('off')  # Turn off axis for better visualization
+                # plt.show()
+                #cropped_frame = cropped_tensor[0].permute(1, 2, 0).numpy()
+                #cv2.imwrite("/Users/lukaslaskowski/Documents/HPI/gorillavision/gorillavision-interspecies-money/image.png", cropped_frame)
+                #cv2.imwrite("/Users/lukaslaskowski/Documents/HPI/gorillavision/gorillavision-interspecies-money/image.png", cropped_frame)
                 # Run YOLOv8 tracking on the cropped frame
                 cropped_frame = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB)
-                #if res is False:
-                   # print("FALSLEL")
                 cropped_frame = cv2.resize(cropped_frame, (416, 416))
-                res = cv2.imwrite('./bmw.png', cropped_frame)
-
                 results = model.track(cropped_frame, persist=True, conf=float(confidence), vid_stride=int(vid_stride),device=0, iou=0.2)
                 nothing_in_track = False
                 if results[0].boxes.is_track is False:
