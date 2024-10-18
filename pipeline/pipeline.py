@@ -9,7 +9,7 @@ import cv2
 from ultralytics import YOLO
 from PIL import Image
 
-from apply_yolo import process_image
+from apply_yolo import process_image, calculate_single_bbox
 from cropper import crop_image
 from image_service import ImageService
 from PytorchWildlife.models import detection as pw_detection
@@ -55,6 +55,8 @@ class Pipeline:
         logging.info("Detecting faces using Yolo.")
         for img in self.image_service:
             bboxes, images = self.detect_face(img)
+            print("dawda", images)
+            print("img", img)
             paths = self.crop_to_face(bboxes, images, img)
             # for path in paths:
             #     img = Image.open(path).convert("RGB")9
@@ -86,7 +88,8 @@ class Pipeline:
                 )
                 local_label_path = os.path.join(label_path, label + ".txt")
                 with open(local_label_path, "w") as f:
-                    line = f"{bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]} {bbox[4]}"
+                    single_box = calculate_single_bbox(bbox, images["width"], images["height"])
+                    line = f"0 {single_box[0]} {single_box[1]} {single_box[2]} {single_box[3]}"# {bbox[4]}"
                     f.write("%s\n" % line)
                 image_bboxes.append({"label": label, "bboxes": bbox})
 
@@ -98,7 +101,6 @@ class Pipeline:
         # collect all the boxes per frame and save them as a video
         bboxes_per_frame = {}
         for key, images in detected_tracks.items():
-            print(images)
             for idx, res in enumerate(images["result"]):
                 frame_id = res["frame_id"]
                 if not frame_id in bboxes_per_frame:
@@ -106,11 +108,10 @@ class Pipeline:
                 bboxes_per_frame[frame_id]["bboxes"].append(res["xyxy"])
 
         # save the video with the boxes
-
         input_path = Path(img[0])
         if (
             self.save_output_videos
-            and input_path.suffix.lower()
+            and input_path.suffix.lower()[1:]
             in self.allowed_extensions["allowed_video_extensions"]
         ):
             video_output_path = os.path.join(self.output_path, "video_results", img[1])
@@ -119,20 +120,29 @@ class Pipeline:
             frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            scale_factor = 0.5  # Adjust the scale factor as needed (e.g., 0.5 for half size)
+            new_width = int(frame_width * scale_factor)
+            new_height = int(frame_height * scale_factor)
             output_video = cv2.VideoWriter(
-                os.path.join(video_output_path, img[1] + "_output.mp4"),
+                os.path.join(video_output_path, img[0].stem + "_output.mp4"),
                 cv2.VideoWriter_fourcc(*"mp4v"),
                 fps,
-                (frame_width, frame_height),
+                (frame_width, frame_height)
             )
 
             for frame_id, frame in bboxes_per_frame.items():
+                print(bboxes_per_frame)
                 for bboxes in frame["bboxes"]:
+                    if not isinstance(bboxes, list):
+                        bboxes = [bboxes]
                     for bbox in bboxes:
+                        
+                        #draw_img = 
+                        #print(bboxes)
                         x1, y1, x2, y2 = bbox
-                        cv2.rectangle(frame["img"], (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    output_video.write(frame["img"])
+                        #cv2.rectangle(draw_img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                        cv2.rectangle(frame["img"], (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                        output_video.write(frame["img"])
 
             output_video.release()
             cap.release()
@@ -149,9 +159,12 @@ class Pipeline:
                 continue
             local_cropped_path = os.path.join(cropped_path, bboxes["label"] + ".png")
             # local_cropped_path = os.path.join(cropped_path, img[0].stem + ".png") if len(images) == 1 else os.path.join(cropped_path, img[0].stem + f"_{idx}.png")
-            cropped_image = crop_image(image, bboxes["bboxes"])
+            print(bboxes)
+            print(image)
+            cropped_image = Image.fromarray(image['img']).crop(bboxes["bboxes"])
             cropped_image.save(local_cropped_path)
             cropped_paths.append(local_cropped_path)
+            #crop_image(image, bboxes["bboxes"])
         return cropped_paths
 
     def save_bboxes(self):

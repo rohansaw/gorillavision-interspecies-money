@@ -14,17 +14,30 @@ import numpy as np
 from cropper import only_crop_image
 import supervision as sv
 
-fixed_size = (416, 416)
+fixed_yolo_input_size = (416, 416)
 
+def get_bbox_for_original_frame(body_bbox, yolo_box, original_cropped_width, original_cropped_height, yolo_input_size):
+    x,y,_,_ = body_bbox
+    scale_x = original_cropped_width / yolo_input_size[0]
+    scale_y = original_cropped_height / yolo_input_size[1]
+    x_min, y_min, x_max, y_max = yolo_box
+    original_x_min = x_min * scale_x
+    original_y_min = y_min * scale_y
+    original_x_max = x_max * scale_x
+    original_y_max = y_max * scale_y
+    orig_x_min = original_x_min + x
+    orig_y_min = original_y_min + y
+    orig_x_max = original_x_max + x
+    orig_y_max = original_y_max + y
+    return (orig_x_min, orig_y_min, orig_x_max, orig_y_max)
 
 def calculate_single_bbox(bbox, width, height):
-    box = bbox["xyxy_face_in_body_crop"]  # Bounding box coordinates [x1, y1, x2, y2]
-    x_center = (box[0] + box[2]) / 2 / width
-    y_center = (box[1] + box[3]) / 2 / height
-    box_width = (box[2] - box[0]) / width
-    box_height = (box[3] - box[1]) / height
-    return [int(bbox["cls"]), x_center, y_center, box_width, box_height]
-
+    #box = bbox["xyxy"]#_face_in_body_crop"]  # Bounding box coordinates [x1, y1, x2, y2]
+    x_center = (bbox[0] + bbox[2]) / 2 / width
+    y_center = (bbox[1] + bbox[3]) / 2 / height
+    box_width = (bbox[2] - bbox[0]) / width
+    box_height = (bbox[3] - bbox[1]) / height
+    return [x_center, y_center, box_width, box_height]
 
 def process_image(image_path, model, detection_model, confidence, vid_stride):
     tracks = {}
@@ -52,8 +65,10 @@ def process_image(image_path, model, detection_model, confidence, vid_stride):
             transform = pw_trans.MegaDetector_v5_Transform(
                 target_size=detection_model.IMAGE_SIZE, stride=detection_model.STRIDE
             )
+            transformed_image = transform(np_img)
+            F.to_pil_image(transformed_image).save('alfa.png')
             detection_result = detection_model.single_image_detection(
-                transform(np_img), np_img.shape
+                transformed_image, np_img.shape
             )
             detections = detection_result["detections"]
 
@@ -72,11 +87,13 @@ def process_image(image_path, model, detection_model, confidence, vid_stride):
                 continue
             for box in gorilla_boxes:
                 # cropped_img = only_crop_image(img, *box)
+                Image.fromarray(np_img).save('merc.png')
                 cropped_img = sv.crop_image(image=np_img, xyxy=box)
-
+                Image.fromarray(cropped_img).save('./audi.png')
                 # Run YOLOv8 tracking on the cropped frame
                 cropped_frame = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB)
-                cropped_frame = cv2.resize(cropped_frame, (416, 416))
+                original_cropped_width, original_cropped_height = Image.fromarray(cropped_img).size
+                cropped_frame = cv2.resize(cropped_frame, fixed_yolo_input_size)
                 results = model.track(
                     cropped_frame,
                     persist=True,
@@ -116,11 +133,14 @@ def process_image(image_path, model, detection_model, confidence, vid_stride):
                             xyxy_face_in_full_frame = np.add(
                                 xyxy_face_in_body_crop, xyxy_body_crop_in_full_frame
                             )
+                            bbox_in_orig_image = get_bbox_for_original_frame(body_bbox=box, yolo_box=xyxy_face_in_body_crop, original_cropped_height=original_cropped_height, original_cropped_width=original_cropped_width, yolo_input_size=fixed_yolo_input_size)
                             tracks[id]["result"].append(
                                 {
-                                    "xyxy": xyxy_face_in_full_frame,
+                                    "xyxy": bbox_in_orig_image,
                                     "xyxy_face_in_body_crop": xyxy_face_in_body_crop,
                                     "img": np_img,
+                                    "transformed_img": transformed_image,
+                                    "body_img": cropped_frame,
                                     "img_cropped": result.orig_img,
                                     "cls": result.boxes.cls[idx].item(),
                                     "frame_id": i,
@@ -131,13 +151,18 @@ def process_image(image_path, model, detection_model, confidence, vid_stride):
 
     for key in tracks.keys():
         tracks[key]["bboxes"] = []  # calculate_bbox(tracks[result]['result'])
+        tracks[key]["width"] = Image.fromarray(np_img).size[0]
+        tracks[key]["height"] = Image.fromarray(np_img).size[1]
         for result in tracks[key]["result"]:
+            #print("res", result["img_cropped"])
+            #Image.fromarray(result["img_cropped"]).save("fiat.png")
             tracks[key]["bboxes"].append(
-                calculate_single_bbox(
-                    result,
-                    Image.fromarray(result["img_cropped"], "RGB").size[0],
-                    Image.fromarray(result["img_cropped"], "RGB").size[1],
-                )
+                result["xyxy"]
+                # calculate_single_bbox(
+                #     result,
+                #     Image.fromarray(result["img_cropped"], "RGB").size[0],
+                #     Image.fromarray(result["img_cropped"], "RGB").size[1],
+                # )
             )
     cap.release()
     return tracks
